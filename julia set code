@@ -1,0 +1,106 @@
+import pygame
+import numpy as np
+import sys
+
+# Initialize Pygame
+if pygame.init()[1] > 0:
+    print(f"Warning: {pygame.init()[1]} Pygame modules failed to initialize")
+    sys.exit(1)
+
+WIDTH, HEIGHT = 800, 400
+MAX_ITER = 100
+SCALE = 200
+OFFSET_X = WIDTH / 4
+OFFSET_Y = HEIGHT / 2
+
+# Set up display
+screen = pygame.display.set_mode((WIDTH, HEIGHT))
+pygame.display.set_caption("Mandelbrot and Julia Set Viewer")
+
+# Set up clock
+clock = pygame.time.Clock()
+
+# Mandelbrot and Julia set functions
+def mandelbrot(h, w, max_iter):
+    y, x = np.ogrid[-2:2:h*1j, -3:1:w*1j]
+    c = x + y*1j
+    z = c
+    divtime = max_iter + np.zeros(z.shape, dtype=int)
+
+    for i in range(max_iter):
+        z = z**2 + c
+        diverge = z*np.conj(z) > 2**2
+        div_now = diverge & (divtime == max_iter)
+        divtime[div_now] = i
+        z[diverge] = 2
+
+    return divtime
+
+def julia(h, w, c, max_iter):
+    y, x = np.ogrid[-2:2:h*1j, -2:2:w*1j]
+    z = x + y*1j
+    divtime = max_iter + np.zeros(z.shape, dtype=int)
+
+    for i in range(max_iter):
+        z = z**2 + c
+        diverge = z*np.conj(z) > 2**2
+        div_now = diverge & (divtime == max_iter)
+        divtime[div_now] = i
+        z[diverge] = 2
+
+    return divtime
+
+def draw_set(surface, array, x_offset, width):
+    # Normalize the values
+    normalized = array / MAX_ITER
+    
+    # Create a color gradient
+    colors = np.zeros((array.shape[0], array.shape[1], 3))
+    colors[:, :, 0] = normalized * 255  # Red channel
+    colors[:, :, 2] = (1 - normalized) * 255  # Blue channel
+    
+    # Create surface from array
+    surf = pygame.surfarray.make_surface(colors)
+    surface.blit(surf, (x_offset, 0))
+
+try:
+    running = True
+
+    # Pre-calculate Mandelbrot set
+    mandel = mandelbrot(HEIGHT, WIDTH//2, MAX_ITER)
+
+    while running:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
+                
+        # Get mouse position and convert to complex number
+        mouse_x, mouse_y = pygame.mouse.get_pos()
+        if mouse_x < WIDTH//2:  # Only consider points in Mandelbrot view
+            c = complex((mouse_x - OFFSET_X) / SCALE, (mouse_y - OFFSET_Y) / SCALE)
+            
+            # Calculate Julia set for current mouse position
+            julia_set = julia(HEIGHT, WIDTH//2, c, MAX_ITER)
+            
+            # Clear screen
+            screen.fill((0, 0, 0))
+            
+            # Draw Mandelbrot set on left
+            draw_set(screen, mandel, 0, WIDTH//2)
+            
+            # Draw Julia set on right
+            draw_set(screen, julia_set, WIDTH//2, WIDTH//2)
+            
+            # Draw a marker at mouse position
+            pygame.draw.circle(screen, (255, 255, 255), (mouse_x, mouse_y), 2)
+            
+            pygame.display.flip()
+        
+        clock.tick(30)
+
+except Exception as e:
+    print(f"An error occurred: {e}")
+finally:
+    pygame.quit()
+    sys.exit()
+    ## credit : https://www.karlsims.com/julia.html#:~:text=Julia%20set%20fractals%20are%20normally,gives%20a%20specific%20Julia%20set.
